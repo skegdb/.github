@@ -1,0 +1,83 @@
+name: Rust CI (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      msrv:
+        description: "Minimum supported Rust version"
+        required: false
+        type: string
+        default: "1.86"
+      workspace:
+        description: "Use --workspace flag (set false for single-crate repos)"
+        required: false
+        type: boolean
+        default: true
+      run_clippy:
+        description: "Run cargo clippy"
+        required: false
+        type: boolean
+        default: true
+      run_fmt:
+        description: "Run cargo fmt --check"
+        required: false
+        type: boolean
+        default: true
+      features:
+        description: "Comma-separated cargo features to enable (passed as --features)"
+        required: false
+        type: string
+        default: ""
+      targets:
+        description: "Comma-separated runner targets"
+        required: false
+        type: string
+        default: "ubuntu-latest,macos-latest"
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.msrv }}
+          components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: derive feature flag
+        id: feat
+        run: |
+          if [ -n "${{ inputs.features }}" ]; then
+            echo "flag=--features ${{ inputs.features }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: cargo fmt --check
+        if: ${{ inputs.run_fmt }}
+        run: cargo fmt --all -- --check
+      - name: cargo build
+        run: |
+          if [ "${{ inputs.workspace }}" = "true" ]; then
+            cargo build --workspace --all-targets --locked ${{ steps.feat.outputs.flag }}
+          else
+            cargo build --all-targets --locked ${{ steps.feat.outputs.flag }}
+          fi
+      - name: cargo test
+        run: |
+          if [ "${{ inputs.workspace }}" = "true" ]; then
+            cargo test --workspace --release --locked ${{ steps.feat.outputs.flag }}
+          else
+            cargo test --release --locked ${{ steps.feat.outputs.flag }}
+          fi
+      - name: cargo clippy
+        if: ${{ inputs.run_clippy }}
+        run: |
+          if [ "${{ inputs.workspace }}" = "true" ]; then
+            cargo clippy --workspace --all-targets --locked ${{ steps.feat.outputs.flag }} -- -D warnings
+          else
+            cargo clippy --all-targets --locked ${{ steps.feat.outputs.flag }} -- -D warnings
+          fi
