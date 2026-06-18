@@ -51,13 +51,10 @@ of it with [`skeg-bench`](https://github.com/skegdb/skeg-bench).
 | **Engine & format** | |
 | [`skeg`](https://github.com/skegdb/skeg) | the KV + vector engine |
 | [`skeg-hull`](https://github.com/skegdb/skeg-hull) | the stable, versioned on-disk format |
-| [`skeg-kv-cache`](https://github.com/skegdb/skeg-kv-cache) | persistent LLM KV cache that skips the prefill |
 | **Clients** | |
 | [`skeg-client-rs`](https://github.com/skegdb/skeg-client-rs) | Rust client (binary protocol) |
 | [`skeg-py`](https://github.com/skegdb/skeg-py) | Python client |
-| [`skeg-gleam`](https://github.com/skegdb/skeg-gleam) | Gleam client |
 | [`skeg-cli`](https://github.com/skegdb/skeg-cli) | CLI: offline build, inspect, stats |
-| [`skeg-tui`](https://github.com/skegdb/skeg-tui) | `skeg-top`, a terminal UI |
 | **AI integrations** | |
 | [`skeg-llamaindex`](https://github.com/skegdb/skeg-llamaindex) | LlamaIndex `VectorStore` adapter |
 | [`skeg-ollama`](https://github.com/skegdb/skeg-ollama) | Ollama embedding + retrieval pipeline |
