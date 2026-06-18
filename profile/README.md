@@ -74,5 +74,5 @@ brew install skegdb/tap/skeg
 ```
 
 Or `cargo install skeg-server`. Pre-built aarch64 tarballs ship with every
-release for Apple Silicon and Linux ARM. Full site + docs:
-**[skegdb.github.io](https://skegdb.github.io)**.
+release for Apple Silicon and Linux ARM. Docs live in the
+[engine repo](https://github.com/skegdb/skeg).
