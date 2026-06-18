@@ -1,69 +1,78 @@
-# skeg
+# skegdb
 
-**A RAM-frugal vector + KV store for the box where the model already lives.**
+**A vector + key-value store, built the model's way.**
 
-Most vector databases are built for the case where the database owns
-the machine. They expect every gigabyte the operating system can spare,
-and they take it.
+Most vector databases assume they own the machine — every gigabyte the OS can
+spare, they take. skegdb assumes the opposite: a box where a language model
+already holds the memory. The index lives on the SSD, a small bounded working
+set stays in RAM, and the rest is left for the model, the context, and the app.
 
-skeg is built for the opposite case: a machine where a language model
-already holds most of the memory. The index sits on the SSD, a small
-bounded working set stays in RAM, and the rest of the system is left
-alone for the model, the context window, the application doing the
-actual work.
+One engine, a menu of compression tiers, and everything around it — clients,
+language integrations, a federation layer, the on-disk format — so a local AI
+stack can store and retrieve without renting a second machine for the database.
 
-## The numbers
+## The engine — [`skeg`](https://github.com/skegdb/skeg)
 
-1M vectors, mxbai 1024-dimensional, recall@10 >= 0.95, on the same
-M-series laptop as the model:
+mxbai 1024-dim, 100K vectors, recall against exact brute-force cosine, M-series
+laptop (serve RSS via `ps`):
 
-| engine | RSS | p99 | qps |
-|---|---|---|---|
-| **skeg** (pq:128:256) | **419 MiB** | **3.6 ms** | **489** |
-| skeg (int8) | 1252 MiB | 10.2 ms | 299 |
-| qdrant (hnsw) | 4162 MiB | 38.9 ms | 168 |
-| chroma (hnsw) | 4417 MiB | 9.7 ms | 196 |
+| engine | serve RAM | recall@10 | recall@100 | p50 |
+| --- | ---: | ---: | ---: | ---: |
+| **skeg** (tq2) | **47 MB** | **1.000** | **1.000** | 2.49 ms |
+| milvus-lite | 108 MB | 0.934 | 0.880 | 2.69 ms |
+| lancedb (IVF-PQ) | 198 MB | 0.998 | 0.991 | 59.3 ms |
+| hnswlib | 426 MB | 0.985 | 0.925 | 1.99 ms |
+| chroma | 682 MB | 0.985 | 0.919 | 3.91 ms |
+| qdrant (f32) | 885 MB | 0.997 | 0.981 | 2.62 ms |
 
-Ten times less memory than HNSW engines at higher recall and lower
-tail latency. The four gigabytes that come back to you are not a
-benchmark trick. They are the memory you can give to a larger model, a
-longer context window, a second model loaded alongside the first, a
-vision encoder, a speech pipeline. Or to nothing, and let the
-operating system breathe.
+The only engine that is leanest, most accurate, and fast at once — **2–19× less
+RAM** than the rest, at the highest recall. The memory that comes back is what
+you give to a larger model or a longer context window.
 
-## How it works
+- **The 256 MB test.** In a 256 MB container, skeg serves; Qdrant gets
+  OOM-killed. RAM-frugality isn't a nice-to-have on a shared box, it's whether
+  the process survives.
+- **Multi-tenant density.** One index per tenant, isolated by construction.
+  Five tenants of 100K: skeg ~200 MB, Qdrant ~1.8 GB — **9× less**, bounded by
+  the largest tenant, not the sum.
 
-The architecture answers one constraint: the resident set of the index
-must hold while the model owns the rest of the memory.
+How: the Vamana graph is walked on the SSD with a small hot-page cache; vectors
+quantize in five tiers (int8, PQ, TurboQuant 1/2/4-bit) and re-rank against
+full-precision vectors on disk; an S3-FIFO cache bounded by a byte budget hands
+evicted pages back to the OS. Native binary protocol + RESP3.
 
-- The Vamana graph is walked on the SSD, with a small in-memory cache
-  for the hot pages.
-- Five tiers of vector quantization (int8, product quantization at
-  128 by 256, and TurboQuant at 1, 2, and 4 bits per coordinate) trade
-  memory against precision.
-- Re-ranking against full-precision vectors held on disk recovers the
-  accuracy lost to quantization.
-- The cache is S3-FIFO, bounded by a byte budget you configure, and
-  gives evicted pages back to the operating system through jemalloc
-  decay timers.
+**Where it loses — straight:** not the fastest single-query engine (Qdrant
+matches p99 when RAM isn't contested); younger in production than Qdrant or
+Chroma. Reproduce all of it: [`skeg-bench`](https://github.com/skegdb/skeg-bench).
 
-The server speaks two protocols. A native binary protocol for clients
-that want the lowest overhead. RESP3 for compatibility with existing
-Redis tooling.
+## The ecosystem
+
+| | |
+| --- | --- |
+| **Engine & format** | |
+| [`skeg`](https://github.com/skegdb/skeg) | the KV + vector engine |
+| [`skeg-hull`](https://github.com/skegdb/skeg-hull) | the stable, versioned on-disk format |
+| [`skeg-kv-cache`](https://github.com/skegdb/skeg-kv-cache) | persistent LLM KV cache — skip the prefill |
+| **Clients** | |
+| [`skeg-client-rs`](https://github.com/skegdb/skeg-client-rs) | Rust client (binary protocol) |
+| [`skeg-py`](https://github.com/skegdb/skeg-py) | Python client |
+| [`skeg-gleam`](https://github.com/skegdb/skeg-gleam) | Gleam client |
+| [`skeg-cli`](https://github.com/skegdb/skeg-cli) | CLI — offline build, inspect, stats |
+| [`skeg-tui`](https://github.com/skegdb/skeg-tui) | `skeg-top`, a terminal UI |
+| **AI integrations** | |
+| [`skeg-llamaindex`](https://github.com/skegdb/skeg-llamaindex) | LlamaIndex `VectorStore` adapter |
+| [`skeg-ollama`](https://github.com/skegdb/skeg-ollama) | Ollama embedding + retrieval pipeline |
+| **Federation** | |
+| [`hansa`](https://github.com/skegdb/hansa) | federate local AI peers |
+| [`skeg-rigging`](https://github.com/skegdb/skeg-rigging) | extension points for memory engines + plugins |
+| [`skeg-rigging-net`](https://github.com/skegdb/skeg-rigging-net) | network transports for federation |
 
 ## Install
 
 ```sh
-brew tap skegdb/tap
-brew install skeg
+brew install skegdb/tap/skeg
 ```
 
-Or `cargo install skeg-server`. Pre-built aarch64 tarballs are
-published with every release for Apple Silicon and Linux ARM.
-
-## License
-
-Apache-2.0 for the engine. Production-grade multi-tenant operations
-and authentication ship in a separate BUSL-1.1 wrapper for use cases
-that need them; single-tenant deployments work out of the box on the
-Apache crate.
+Or `cargo install skeg-server`. Pre-built aarch64 tarballs ship with every
+release for Apple Silicon and Linux ARM. Full site + docs:
+**[skegdb.github.io](https://skegdb.github.io)**.
