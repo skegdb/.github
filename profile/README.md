@@ -2,16 +2,16 @@
 
 **A vector + key-value store, built the model's way.**
 
-Most vector databases assume they own the machine — every gigabyte the OS can
-spare, they take. skegdb assumes the opposite: a box where a language model
-already holds the memory. The index lives on the SSD, a small bounded working
-set stays in RAM, and the rest is left for the model, the context, and the app.
+Most vector databases assume they own the machine and take every gigabyte the OS
+can spare. skegdb assumes the opposite: a box where a language model already
+holds the memory. The index lives on the SSD, a small bounded working set stays
+in RAM, and the rest is left for the model and the app.
 
-One engine, a menu of compression tiers, and everything around it — clients,
-language integrations, a federation layer, the on-disk format — so a local AI
+One engine with a menu of compression tiers, plus the clients, language
+integrations, federation layer, and on-disk format around it, so a local AI
 stack can store and retrieve without renting a second machine for the database.
 
-## The engine — [`skeg`](https://github.com/skegdb/skeg)
+## The engine: [`skeg`](https://github.com/skegdb/skeg)
 
 mxbai 1024-dim, 100K vectors, recall against exact brute-force cosine, M-series
 laptop (serve RSS via `ps`):
@@ -25,25 +25,24 @@ laptop (serve RSS via `ps`):
 | chroma | 682 MB | 0.985 | 0.919 | 3.91 ms |
 | qdrant (f32) | 885 MB | 0.997 | 0.981 | 2.62 ms |
 
-The only engine that is leanest, most accurate, and fast at once — **2–19× less
-RAM** than the rest, at the highest recall. The memory that comes back is what
-you give to a larger model or a longer context window.
+skeg uses 2 to 19x less RAM than the others while matching or beating their
+recall, and stays fast. That RAM goes back to the model and its context.
 
-- **The 256 MB test.** In a 256 MB container, skeg serves; Qdrant gets
-  OOM-killed. RAM-frugality isn't a nice-to-have on a shared box, it's whether
-  the process survives.
-- **Multi-tenant density.** One index per tenant, isolated by construction.
-  Five tenants of 100K: skeg ~200 MB, Qdrant ~1.8 GB — **9× less**, bounded by
-  the largest tenant, not the sum.
+**The 256 MB test.** In a 256 MB container skeg serves; Qdrant gets OOM-killed.
+On a shared box, RAM-frugality decides whether the process survives.
 
-How: the Vamana graph is walked on the SSD with a small hot-page cache; vectors
-quantize in five tiers (int8, PQ, TurboQuant 1/2/4-bit) and re-rank against
-full-precision vectors on disk; an S3-FIFO cache bounded by a byte budget hands
-evicted pages back to the OS. Native binary protocol + RESP3.
+**Multi-tenant density.** One index per tenant, isolated by construction. Five
+tenants of 100K: skeg around 200 MB against Qdrant's 1.8 GB, 9x less. RAM is
+bounded by the largest tenant, not the sum.
 
-**Where it loses — straight:** not the fastest single-query engine (Qdrant
-matches p99 when RAM isn't contested); younger in production than Qdrant or
-Chroma. Reproduce all of it: [`skeg-bench`](https://github.com/skegdb/skeg-bench).
+How it works: the Vamana graph is walked on the SSD with a small hot-page cache.
+Vectors quantize in five tiers (int8, PQ, TurboQuant at 1, 2, and 4 bits) and
+re-rank against full-precision vectors on disk. An S3-FIFO cache bounded by a
+byte budget hands evicted pages back to the OS. Native binary protocol and RESP3.
+
+**Where it loses.** Not the fastest single-query engine: Qdrant matches p99 when
+RAM is not contested. Younger in production than Qdrant or Chroma. Reproduce all
+of it with [`skeg-bench`](https://github.com/skegdb/skeg-bench).
 
 ## The ecosystem
 
@@ -52,19 +51,19 @@ Chroma. Reproduce all of it: [`skeg-bench`](https://github.com/skegdb/skeg-bench
 | **Engine & format** | |
 | [`skeg`](https://github.com/skegdb/skeg) | the KV + vector engine |
 | [`skeg-hull`](https://github.com/skegdb/skeg-hull) | the stable, versioned on-disk format |
-| [`skeg-kv-cache`](https://github.com/skegdb/skeg-kv-cache) | persistent LLM KV cache — skip the prefill |
+| [`skeg-kv-cache`](https://github.com/skegdb/skeg-kv-cache) | persistent LLM KV cache that skips the prefill |
 | **Clients** | |
 | [`skeg-client-rs`](https://github.com/skegdb/skeg-client-rs) | Rust client (binary protocol) |
 | [`skeg-py`](https://github.com/skegdb/skeg-py) | Python client |
 | [`skeg-gleam`](https://github.com/skegdb/skeg-gleam) | Gleam client |
-| [`skeg-cli`](https://github.com/skegdb/skeg-cli) | CLI — offline build, inspect, stats |
+| [`skeg-cli`](https://github.com/skegdb/skeg-cli) | CLI: offline build, inspect, stats |
 | [`skeg-tui`](https://github.com/skegdb/skeg-tui) | `skeg-top`, a terminal UI |
 | **AI integrations** | |
 | [`skeg-llamaindex`](https://github.com/skegdb/skeg-llamaindex) | LlamaIndex `VectorStore` adapter |
 | [`skeg-ollama`](https://github.com/skegdb/skeg-ollama) | Ollama embedding + retrieval pipeline |
 | **Federation** | |
 | [`hansa`](https://github.com/skegdb/hansa) | federate local AI peers |
-| [`skeg-rigging`](https://github.com/skegdb/skeg-rigging) | extension points for memory engines + plugins |
+| [`skeg-rigging`](https://github.com/skegdb/skeg-rigging) | extension points for memory engines and plugins |
 | [`skeg-rigging-net`](https://github.com/skegdb/skeg-rigging-net) | network transports for federation |
 
 ## Install
